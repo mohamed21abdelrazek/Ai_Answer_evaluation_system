@@ -1,13 +1,5 @@
 
-# app.py
-from flask import Flask, render_template_string, request
-import requests
-import re
-import html
 
-app = Flask(__name__)
-
-html_template = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -392,61 +384,3 @@ html_template = """
     </div>
 </body>
 </html>
-"""
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        api_data = {
-            "question": request.form['question'],
-            "full_mark": request.form['full_mark'],
-            "model_answer": request.form['model_answer'],
-            "student_answer": request.form['student_answer']
-        }
-
-        api_url = "https://911a-35-189-175-66.ngrok-free.app/grade"
-        try:
-            response = requests.post(api_url, json=api_data, timeout=20)  
-            response.raise_for_status()
-            result = response.json()
-
-            if 'explanation' in result:
-                explanation = result['explanation']
-                grade = extract_grade(explanation)
-                formatted_explanation = format_explanation(explanation)
-                return render_template_string(html_template, result={'grade': grade, 'explanation': formatted_explanation})
-            else:
-                return render_template_string(html_template, error="الاستجابة لا تحتوي على بيانات صحيحة.")
-        except requests.exceptions.Timeout:
-            return render_template_string(html_template, error="خطأ: انتهى وقت الاتصال بالخادم.")
-        except requests.exceptions.ConnectionError:
-            return render_template_string(html_template, error="خطأ في الاتصال بالخادم. يرجى التحقق من عنوان API.")
-        except requests.RequestException as e:
-            return render_template_string(html_template, error=f"خطأ في الاتصال بـ API: {str(e)}")
-
-    return render_template_string(html_template)
-
-
-def extract_grade(explanation):
-    grade_match = re.search(r'الدرجة:\s*(\d+)\s*من\s*(\d+)', explanation)
-    if grade_match:
-        return f"{grade_match.group(1)}/{grade_match.group(2)}"
-    return "غير محدد"
-
-def extract_similarity(explanation):
-    similarity_match = re.search(r'نسبة التشابه:\s*(\d+)%', explanation)
-    if similarity_match:
-        return similarity_match.group(1) + "%"
-    return "غير محدد"
-
-def format_explanation(explanation):
-    explanation = html.escape(explanation)
-    explanation = explanation.replace('\n', '<br>')
-    
-    headers = ['الدرجة:', 'نسبة التشابه:', 'السبب:', 'النقاط الصحيحة:', 'النقاط الخاطئة:', 'التحليل:', 'ملاحظة:']
-    for header in headers:
-        explanation = explanation.replace(header, f'<strong>{header}>')
-    
-    return explanation
-
-if __name__ == '__main__':
-    app.run(debug=True)
